@@ -19,3 +19,4 @@ const AnimationSchema: Schema = new Schema({
 });
 
 export default mongoose.model<IAnimation>('Animation', AnimationSchema);
+

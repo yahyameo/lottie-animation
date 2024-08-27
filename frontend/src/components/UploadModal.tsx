@@ -3,6 +3,8 @@ import React, { useRef, useState } from 'react';
 import { AnimationItemProps } from './AnimationItem';
 import { saveAnimation } from '../indexedDB';
 import { UPLOAD_ANIMATION } from '../utils/graphql-commands';
+import { Player } from '@lottiefiles/react-lottie-player';
+import { validateLottieJson } from '../utils/lottie.validator';
 
 interface PopupProps {
     onClose: () => void;
@@ -15,6 +17,7 @@ const UploadModal: React.FC<PopupProps> = ({ onClose, onSave, isOnline }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [name, setName] = useState('');
+    const [error, setError] = useState<string | null>(null);
     const [description, setDescription] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
@@ -24,33 +27,56 @@ const UploadModal: React.FC<PopupProps> = ({ onClose, onSave, isOnline }) => {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files ? e.target.files[0] : null;
         setFile(selectedFile);
 
-        if (selectedFile) {
+        if (selectedFile && selectedFile.type === 'application/json') {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreview(reader.result as string);
+
+            reader.onloadend = async () => {
+                const fileContent = reader.result as string;
+                try {
+                    const json = JSON.parse(fileContent);
+                    const isValid = await validateLottieJson(json);
+                    if (isValid) {
+                        setPreview(fileContent);
+                        setError(null);
+                    } else {
+                        setError('Invalid Lottie JSON format.');
+                    }
+                } catch (error) {
+                    console.error('Error reading or parsing file:', error);
+                    setPreview(null);
+                }
             };
-            reader.readAsDataURL(selectedFile);
+
+            reader.readAsText(selectedFile);
         } else {
+            console.error('Please upload a valid JSON file');
             setPreview(null);
         }
     };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!file || !name) return;
         try {
+            setError("");
             let payload: any = { id: new Date().getTime(), file, name, description, fileName: file.name };
             if (isOnline) {
-                const { data } = await uploadAnimation({
+                const { data, errors } = await uploadAnimation({
                     variables: { file, name, description },
                 });
+                // Check if there are any errors returned by the server
+                if (errors && errors.length > 0) {
+                    throw new Error(errors[0].message);
+                }
                 payload = data.uploadAnimation;
             }
             handleImageUpload(payload);
-        } catch (error) {
+        } catch (error: any) {
+            setError(error["message"]);
             console.error('Error uploading animation:', error);
         }
     };
@@ -73,7 +99,13 @@ const UploadModal: React.FC<PopupProps> = ({ onClose, onSave, isOnline }) => {
                 <div className="popup-body card-body">
                     <div className="form-row text-center">
                         <div className='form-group col-md-12'>
-                            {preview && <img src={preview} alt="Preview" className="image-preview lottie-img" />}
+                            {preview && <Player
+                                autoplay
+                                loop
+                                className="image-preview"
+                                src={preview}
+
+                            />}
                         </div>
                         <div className="form-group col-md-12">
                             <input ref={fileInputRef} hidden type="file" onChange={handleFileChange} required />
@@ -91,6 +123,11 @@ const UploadModal: React.FC<PopupProps> = ({ onClose, onSave, isOnline }) => {
                         <div className="form-group col-md-12">
                             <label>Description</label>
                             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" type="text" className="form-control" />
+                        </div>
+                    </div>
+                    <div className="form-row">
+                        <div className="form-group col-md-12">
+                            {error && <label className='text-danger'>{error}</label>}
                         </div>
                     </div>
                     <div className='form-row'>

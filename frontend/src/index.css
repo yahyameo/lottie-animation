@@ -255,3 +255,11 @@ label {
   border-radius: .25rem;
   transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out
 }
+
+.image-preview{
+  height: 100px;
+  width: 150px;
+}
+.text-danger{
+  color: red;
+}

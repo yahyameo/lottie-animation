@@ -3,7 +3,8 @@ import { GraphQLUpload, FileUpload } from 'graphql-upload-ts';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import { createWriteStream } from 'fs';
-import Animation from '../models/Animation';
+import Animation, { IAnimation } from '../models/Animation';
+import { GraphQLError } from 'graphql';
 
 const typeDefs = `
   scalar Upload
@@ -32,32 +33,58 @@ const typeDefs = `
 const resolvers = {
   Upload: GraphQLUpload,
   Query: {
-    searchAnimations: async (_: any, { query }: any) => {
+    searchAnimations: async (_: any, { query }: any): Promise<IAnimation[]> => {
       return await Animation.find({ name: { $regex: query, $options: 'i' } });
     },
-    getAnimation: async (_: any, { id }: any) => {
-      return await Animation.findById(id);
+    getAnimation: async (_: any, { id }: any): Promise<IAnimation | null> => {
+      const animation = await Animation.findById(id);
+
+      if (!animation) {
+        throw new Error(`Animation with id ${id} not found`);
+      }
+
+      return animation;
     },
-    getAllAnimations: async () => {
+    getAllAnimations: async (): Promise<IAnimation[]> => {
       return await Animation.find();
     },
   },
   Mutation: {
-    uploadAnimation: async (_: any, { file, name, description }: { file: FileUpload; name: string; description: string }) => {
-      const { createReadStream, filename } = await file;
-      const uniqueFilename = `${uuidv4() + "." + filename.split(".")[1]}`;
-      const filepath = path.join(__dirname, '../uploads', uniqueFilename);
+    uploadAnimation: async (_: any, { file, name, description }: { file: FileUpload; name: string; description: string }): Promise<IAnimation> => {
+      try {
 
-      await new Promise((res, rej) =>
-        createReadStream()
-          .pipe(createWriteStream(filepath))
-          .on('finish', res)
-          .on('error', rej)
-      );
+        const { createReadStream, filename } = await file;
 
-      const animation = new Animation({ name, description, fileName: filename, path: uniqueFilename });
-      return await animation.save();
-    },
+        // Validate file extension
+        const fileExtension = path.extname(filename).toLowerCase();
+
+        if (fileExtension !== '.json') {
+          throw new GraphQLError('Only .json files are allowed for Lottie animations', {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              http: { status: 400 }
+            }
+          });
+        }
+
+        const uniqueFilename = `${uuidv4() + "." + filename.split(".")[1]}`;
+        const filepath = path.join(__dirname, '../uploads', uniqueFilename);
+
+        await new Promise((res, rej) =>
+          createReadStream()
+            .pipe(createWriteStream(filepath))
+            .on('finish', res)
+            .on('error', rej)
+        );
+
+        const animation = new Animation({ name, description, fileName: filename, path: uniqueFilename });
+        return await animation.save();
+      } catch (error: any) {
+        console.error('Error in uploadAnimation:', error);
+        throw new Error(error);
+      }
+    }
+
   },
 };
 

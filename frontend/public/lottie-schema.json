@@ -1,0 +1,63 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "v": { "type": "string" },
+      "fr": { "type": "number" },
+      "ip": { "type": "number" },
+      "op": { "type": "number" },
+      "w": { "type": "number" },
+      "h": { "type": "number" },
+      "nm": { "type": "string" },
+      "ddd": { "type": "number" },
+      "assets": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "w": { "type": "number" },
+            "h": { "type": "number" },
+            "p": { "type": "string" },
+            "e": { "type": "number" },
+            "layers": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          },
+          "required": ["id"]
+        }
+      },
+      "layers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "ddd": { "type": "number" },
+            "ind": { "type": "number" },
+            "ty": { "type": "number" },
+            "nm": { "type": "string" },
+            "sr": { "type": "number" },
+            "ks": {
+              "type": "object",
+              "properties": {
+                "o": { "type": "object" },
+                "r": { "type": "object" },
+                "p": { "type": "object" },
+                "a": { "type": "object" },
+                "s": { "type": "object" }
+              },
+              "required": ["o", "r", "p", "a", "s"]
+            },
+            "shapes": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          },
+          "required": ["ind", "ty", "nm", "ks"]
+        }
+      }
+    },
+    "required": ["v", "fr", "ip", "op", "w", "h", "nm", "ddd", "assets", "layers"]
+  }
+  

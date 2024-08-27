@@ -19,6 +19,7 @@ const uuid_1 = require("uuid");
 const path_1 = __importDefault(require("path"));
 const fs_1 = require("fs");
 const Animation_1 = __importDefault(require("../models/Animation"));
+const graphql_1 = require("graphql");
 const typeDefs = `
   scalar Upload
 
@@ -49,7 +50,11 @@ const resolvers = {
             return yield Animation_1.default.find({ name: { $regex: query, $options: 'i' } });
         }),
         getAnimation: (_2, _b) => __awaiter(void 0, [_2, _b], void 0, function* (_, { id }) {
-            return yield Animation_1.default.findById(id);
+            const animation = yield Animation_1.default.findById(id);
+            if (!animation) {
+                throw new Error(`Animation with id ${id} not found`);
+            }
+            return animation;
         }),
         getAllAnimations: () => __awaiter(void 0, void 0, void 0, function* () {
             return yield Animation_1.default.find();
@@ -57,16 +62,32 @@ const resolvers = {
     },
     Mutation: {
         uploadAnimation: (_3, _c) => __awaiter(void 0, [_3, _c], void 0, function* (_, { file, name, description }) {
-            const { createReadStream, filename } = yield file;
-            const uniqueFilename = `${(0, uuid_1.v4)() + "." + filename.split(".")[1]}`;
-            const filepath = path_1.default.join(__dirname, '../uploads', uniqueFilename);
-            yield new Promise((res, rej) => createReadStream()
-                .pipe((0, fs_1.createWriteStream)(filepath))
-                .on('finish', res)
-                .on('error', rej));
-            const animation = new Animation_1.default({ name, description, fileName: filename, path: uniqueFilename });
-            return yield animation.save();
-        }),
+            try {
+                const { createReadStream, filename } = yield file;
+                // Validate file extension
+                const fileExtension = path_1.default.extname(filename).toLowerCase();
+                if (fileExtension !== '.json') {
+                    throw new graphql_1.GraphQLError('Only .json files are allowed for Lottie animations', {
+                        extensions: {
+                            code: 'BAD_USER_INPUT',
+                            http: { status: 400 }
+                        }
+                    });
+                }
+                const uniqueFilename = `${(0, uuid_1.v4)() + "." + filename.split(".")[1]}`;
+                const filepath = path_1.default.join(__dirname, '../uploads', uniqueFilename);
+                yield new Promise((res, rej) => createReadStream()
+                    .pipe((0, fs_1.createWriteStream)(filepath))
+                    .on('finish', res)
+                    .on('error', rej));
+                const animation = new Animation_1.default({ name, description, fileName: filename, path: uniqueFilename });
+                return yield animation.save();
+            }
+            catch (error) {
+                console.error('Error in uploadAnimation:', error);
+                throw new Error(error);
+            }
+        })
     },
 };
 exports.schema = (0, schema_1.makeExecutableSchema)({ typeDefs, resolvers });
